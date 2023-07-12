@@ -1,198 +1,108 @@
-let width, height, offset;
-let app, container;
-let circleTexture;
-const fireworks = [];
-const minHeight = 530;
+const { Illustration, RoundedRect, Ellipse, Group, Shape, TAU } = Zdog;
 
-function resize() {
-  width = window.innerWidth;
-  height = window.innerHeight;
-  offset = minHeight - height;
-  if (app) app.renderer.resize(width, height);
+const n = 100;
+const r = 100;
+const gap = 4;
+const points = Array(n)
+	.fill()
+	.map((_, i, { length }) => {
+		const angle = (((360 / length) * i) / 180) * Math.PI;
+		const x = Math.cos(angle) * r;
+		const y = Math.sin(angle) * r;
+		return {
+			x,
+			y
+		};
+	});
+
+const lines = Array(Math.floor(points.length / gap))
+	.fill()
+	.map((_, i) => {
+		const i1 = i * gap;
+		const i2 = i * gap + 1;
+		const { x: x1, y: y1 } = points[i1];
+		const { x: x2, y: y2 } = points[i2];
+		return {
+			x1,
+			y1,
+			x2,
+			y2
+		};
+	});
+
+const svg = document.querySelector("svg");
+
+illustration = new Illustration({
+	element: svg
+});
+
+const scene = new RoundedRect({
+	addTo: illustration,
+	width: 400,
+	height: 400,
+	fill: true,
+	color: "hsl(0 0% 90%)",
+	cornerRadius: 20
+});
+
+new Ellipse({
+	addTo: scene,
+	diameter: 300,
+	fill: true,
+	color: "hsl(0 0% 97%)"
+});
+
+const groupLines = new Group({
+	addTo: scene,
+	translate: { z: 5 }
+});
+
+for (const { x1, y1, x2, y2 } of lines) {
+	new Shape({
+		addTo: groupLines,
+		stroke: 4,
+		path: [
+			{ x: x1, y: y1 },
+			{ x: x2, y: y2 }
+		],
+		color: "hsl(0 0% 65%)"
+	});
 }
 
-function setup() {
-  resize();
+new Ellipse({
+	addTo: scene,
+	diameter: 100,
+	fill: true,
+	color: "hsl(0 0% 65%)"
+});
 
-  // set up Pixi stage and container
-  app = new PIXI.Application({
-    width,
-    height,
-    backgroundColor: 0x070514
-  });
+groupSpheres = new Group({
+	addTo: scene,
+	translate: { z: 15 }
+});
 
-  container = new PIXI.ParticleContainer(3000, {
-    tint: true
-  });
+new Shape({
+	addTo: groupSpheres,
+	stroke: 30,
+	color: "hsl(200 85% 55%)",
+	translate: { y: -r }
+});
 
-  app.stage.addChild(container);
-  document.body.appendChild(app.view);
+new Shape({
+	addTo: groupSpheres,
+	stroke: 30,
+	color: "hsl(40 90% 55%)",
+	translate: { y: r }
+});
 
-  // create a circle graphic for the sprites
-  const gr = new PIXI.Graphics();
-  gr.beginFill(0xffffff);
-  gr.lineStyle(0);
-  gr.drawCircle(10, 10, 10);
-  gr.endFill();
-  circleTexture = app.renderer.generateTexture(gr);
+illustration.rotate.x = TAU / 5;
+illustration.rotate.z = TAU / 16;
+illustration.updateRenderGraph();
 
-  // create 8 fireworks
-  for (let i = 0; i < 8; i++) {
-    fireworks.push(new Firework());
-  }
-}
+const animate = () => {
+	groupSpheres.rotate.z = (groupSpheres.rotate.z + 0.02) % TAU;
+	illustration.updateRenderGraph();
+	requestAnimationFrame(animate);
+};
 
-class Particle {
-  constructor() {
-    this.sprite = new PIXI.Sprite(circleTexture);
-    this.sprite.x = 0;
-    this.sprite.y = 0;
-    this.sprite.width = 5;
-    this.sprite.height = 5;
-    this.vx = 0;
-    this.vy = 0;
-    this.hue = 0;
-    this.sprite.alpha = 0;
-    this.active = false;
-    container.addChild(this.sprite);
-  }
-
-  reset(x, y, i) {
-    this.sprite.x = x;
-    this.sprite.y = y;
-    this.vx = Math.cos((i / 200) * Math.PI * 2) * Math.random();
-    this.vy = Math.sin((i / 200) * Math.PI * 2) * Math.random();
-    this.hue = this.hue;
-    this.sprite.alpha = 1;
-    this.sprite.width = 5;
-    this.sprite.height = 5;
-    this.active = true;
-  }
-
-  update() {
-    // particles that have faded away are set back to inactive
-    if (this.sprite.alpha <= 0) this.active = false;
-
-    // only update active particles
-    if (!this.active) return;
-    // reduce alpha on each frame
-    if (this.sprite.alpha >= 0) this.sprite.alpha -= 0.003;
-
-    this.adjustHue();
-    this.applyForces();
-    this.reduceSize();
-  }
-
-  adjustHue() {
-    this.hue += 3;
-    if (this.hue > 360) this.hue = 0;
-    const color = new PIXI.Color({ h: this.hue, s: 80, l: 50, a: 1 });
-    this.sprite.tint = color;
-  }
-
-  applyForces() {
-    // move x & y (velocity)
-    this.sprite.x += this.vx;
-    this.sprite.y += this.vy;
-    // apply a little friction
-    this.vx *= 0.994;
-    this.vy *= 0.994;
-    // add a little gravity
-    this.vy += 0.002;
-  }
-
-  reduceSize() {
-    this.sprite.width -= 0.02;
-    this.sprite.height -= 0.02;
-  }
-}
-
-class Firework extends Particle {
-  constructor() {
-    super();
-    // random hue
-    this.hue = Math.floor(Math.random() * 360);
-    const color = new PIXI.Color({ h: this.hue, s: 80, l: 50, a: 1 });
-    this.sprite.tint = color;
-    this.launched = false;
-    this.exploding = false;
-
-    this.particles = [];
-    for (let i = 0; i < 200; i++) {
-      this.particles.push(new Particle());
-    }
-  }
-
-  launch() {
-    this.exploded = false;
-
-    // set up position and velocity
-    this.sprite.y = height;
-    if (offset > 0) this.sprite.y += offset;
-    this.sprite.x = width * 0.2 + Math.random() * width * 0.6;
-    this.vx = -1 + Math.random() * 2;
-    this.vy = -3 - Math.random();
-    this.sprite.alpha = 1;
-
-    this.launched = true;
-  }
-
-  explode() {
-    this.exploding = true;
-    this.sprite.alpha = 0;
-    for (let i = 0; i < this.particles.length; i++) {
-      // set all the particles in this firework to explaode from the current position
-      this.particles[i].reset(this.sprite.x, this.sprite.y, i);
-    }
-  }
-
-  update() {
-    if (!this.launched) return;
-
-    this.applyForces();
-
-    // If the firework particle has slowed, explode it
-    if (this.vy > -0.5 && !this.exploding) this.explode();
-
-    let allParticlesComplete = true;
-    for (let i = 0; i < this.particles.length; i++) {
-      this.particles[i].update();
-      if (this.particles[i].active) allParticlesComplete = false;
-    }
-
-    // Once all the particles in the firework have faded out to alpha 0
-    // it is set to launched = false so they are available to be launched again
-    if (this.exploding && allParticlesComplete) {
-      this.launched = false;
-      this.exploding = false;
-    }
-  }
-}
-
-function launch() {
-  for (let i = 0; i < fireworks.length; i++) {
-    if (!fireworks[i].launched) {
-      // launch the first available unlaunched firework in the array
-      fireworks[i].launch();
-      break;
-    }
-  }
-  setTimeout(launch, Math.random() * 3000);
-}
-
-function animate(d) {
-  for (let i = 0; i < fireworks.length; i++) {
-    fireworks[i].update();
-  }
-
-  requestAnimationFrame(animate);
-}
-
-setup();
-// app.ticker.add(animate);
-window.addEventListener("resize", resize);
-
-requestAnimationFrame(animate);
-
-// begin launching
-setTimeout(launch, Math.random() * 3000);
+animate();
